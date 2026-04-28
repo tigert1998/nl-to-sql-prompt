@@ -2,3 +2,4 @@
 *.sql
 *.md
 values
+config.json

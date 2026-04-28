@@ -1,17 +1,47 @@
-import os
+import json
+import csv
+import io
+
+import mysql.connector
 
 
-def generate_prompt():
-    with open("./schema.sql", "r") as f:
-        schema = f.read()
+def generate_db_schema():
+    with open("./config.json", "r") as f:
+        config = json.loads(f.read())
 
+    db = mysql.connector.connect(**config["db"])
+    cursor = db.cursor()
+    cursor.execute("show tables;")
+    tables = [row[0] for row in cursor.fetchall()]
+
+    schema_sqls = []
+    for table in tables:
+        cursor.execute(f"show create table `{table}`;")
+        _, sql = cursor.fetchall()[0]
+        schema_sqls.append(sql + ";")
+
+    columns_range = []
+    for dic in config["columns"]:
+        table = dic["table"]
+        column = dic["column"]
+        cursor.execute(f"select distinct `{column}` from `{table}`;")
+        data = [[row[0]] for row in cursor.fetchall()]
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator="\n")
+        writer.writerows(data)
+        csv_string = output.getvalue()
+        columns_range.append((table, column, csv_string))
+
+    cursor.close()
+    db.close()
+
+    schema = "\n\n".join(schema_sqls)
+    return schema, columns_range
+
+
+def generate_prompt(schema, columns_range):
     ls = []
-    for filename in os.listdir("./values"):
-        if not filename.lower().endswith(".csv"):
-            continue
-        table, column, _ = filename.split(".")
-        with open(os.path.join("values", filename), "r") as f:
-            content = f.read()
+    for table, column, content in columns_range:
         ls.append(f"`{table}`表的`{column}`列仅包含如下取值：\n```csv\n{content}```\n")
 
     return f"""# 角色
@@ -52,4 +82,4 @@ def generate_prompt():
 
 
 if __name__ == "__main__":
-    print(generate_prompt())
+    print(generate_prompt(*generate_db_schema()))
