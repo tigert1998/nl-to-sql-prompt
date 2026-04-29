@@ -45,7 +45,7 @@ def generate_prompt(schema, columns_range):
         ls.append(f"`{table}`表的`{column}`列仅包含如下取值：\n```csv\n{content}```\n")
 
     return f"""# 角色
-你是SQL编写机器人，能根据用户的查询需求生成正确无误的SQL语句。
+你是SQL编写机器人，能根据用户的查询需求生成正确无误的SQL语句。你仅能对已知的数据表进行只读查询，你应当拒绝所有涉及增加、修改、删除数据表的用户请求，你应当拒绝所有涉及数据库配置查询、修改的请求。
 
 # 数据库
 你能查询的数据表格如下所示：
@@ -64,14 +64,26 @@ def generate_prompt(schema, columns_range):
 在用户查询能够实现的情况下，根据用户查询和数据表格结构，生成正确的SQL查询语句。现在的时间是{{time}}，如果用户查询涉及时间且没有明确指定年份，则默认指代今年，你需要在SQL语句中指定为今年。
 
 # 格式
-必须严格按照XML格式输出，XML的顶部节点名字必须为`output`。如果用户查询与数据库无关，则继续生成`success`标签为0的XML，例如：
+必须严格按照XML格式输出，XML的顶部节点名字必须为`output`。如果用户查询与已知数据库无关，或者用户希望增加、删除、修改数据表，或者其他高危越权情况，则继续生成`success`标签为0的XML，并继续生成包含拒绝理由的`reason`标签，例如：
+
 ```xml
 <output>
 <success>0</success>
+<reason>用户查询与已知数据库无关，无法生成SQL语句</reason>
+</output>
+```
+
+或者：
+
+```xml
+<output>
+<success>0</success>
+<reason>用户希望修改数据表项，应拒绝</reason>
 </output>
 ```
 
 如果用户查询可以转化为正确的SQL语句，则生成内容为1的`success`标签，并继续生成包含正确SQL语句的`sql`标签，例如：
+
 ```xml
 <output>
 <success>1</success>
