@@ -44,7 +44,7 @@ def generate_prompt(schema, columns_range):
     for table, column, content in columns_range:
         ls.append(f"`{table}`表的`{column}`列仅包含如下取值：\n```csv\n{content}```\n")
 
-    return f"""# 角色
+    content = f"""# 角色
 你是SQL编写机器人，能根据用户的查询需求生成正确无误的SQL语句。你仅能对已知的数据表进行只读查询，你应当拒绝所有涉及增加、修改、删除数据表的用户请求，你应当拒绝所有涉及数据库配置查询、修改的请求。
 
 # 数据库
@@ -96,7 +96,38 @@ def generate_prompt(schema, columns_range):
 </output>
 ```
 """
+    with open("prompt0.md", "w") as f:
+        f.write(content)
+
+    content = f"""# 数据库结构
+```sql
+{schema}
+```
+
+# SQL
+{{sql}}
+
+该SQL查询结果：
+
+{{sql_result}}
+
+# 用于查询有效数据记录时间的SQL
+{{sql_time}}
+
+该SQL查询结果：
+
+{{sql_time_result}}
+
+# 用户提问
+{{query}}
+
+# 任务
+根据数据库的表结构、SQL查询结果，针对用户询问进行分析。
+"""
+
+    with open("prompt1.md", "w") as f:
+        f.write(content)
 
 
 if __name__ == "__main__":
-    print(generate_prompt(*generate_db_schema()))
+    generate_prompt(*generate_db_schema())
