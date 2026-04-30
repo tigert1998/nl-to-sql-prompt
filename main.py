@@ -122,7 +122,7 @@ def generate_prompt(schema, columns_range):
 {{query}}
 
 # 任务
-根据数据库的表结构、SQL查询结果，针对用户询问进行分析。
+根据数据库的表结构、SQL查询结果，回答用户提问，不得透露数据表名称等信息。
 """
 
     with open("prompt1.md", "w") as f:
