@@ -11,51 +11,59 @@ def generate_db_schema():
 
     db = mysql.connector.connect(**config["db"])
     cursor = db.cursor()
-    cursor.execute("show tables;")
-    tables = [row[0] for row in cursor.fetchall()]
 
-    schema_sqls = []
-    for table in tables:
-        cursor.execute(f"show create table `{table}`;")
-        _, sql = cursor.fetchall()[0]
-        schema_sqls.append(sql + ";")
+    schemas = []
+    for table in config["tables"].keys():
+        sql = f"""SELECT table_comment FROM information_schema.tables
+            WHERE table_name = '{table}';"""
+        cursor.execute(sql)
+        table_comment = cursor.fetchall()[0][0]
+        column_descs = []
+        for column, _ in config["tables"][table].items():
+            sql = f"""SELECT COLUMN_COMMENT, column_type FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = '{table}' and column_name = '{column}';"""
+            cursor.execute(sql)
+            column_comment, column_type = cursor.fetchall()[0]
+            column_descs.append(
+                f"- 列名：{column}，类型：`{column_type}`，注释：{column_comment}"
+            )
+        table_desc = f"表名：{table}，注释：{table_comment}\n" + "\n".join(column_descs)
+        schemas.append(table_desc)
+    schema = "\n\n".join(schemas)
 
-    columns_range = []
-    for dic in config["columns"]:
-        table = dic["table"]
-        column = dic["column"]
-        cursor.execute(f"select distinct `{column}` from `{table}`;")
-        data = [[row[0]] for row in cursor.fetchall()]
-        output = io.StringIO()
-        writer = csv.writer(output, lineterminator="\n")
-        writer.writerows(data)
-        csv_string = output.getvalue()
-        columns_range.append((table, column, csv_string))
+    lists = []
+    for table in config["tables"].keys():
+        for column in [k for k, v in config["tables"][table].items() if v]:
+            cursor.execute(f"select distinct `{column}` from `{table}`;")
+            data = [[row[0]] for row in cursor.fetchall()]
+            output = io.StringIO()
+            writer = csv.writer(output, lineterminator="\n")
+            writer.writerows(data)
+            content = output.getvalue()
+            lists.append(
+                f"`{table}`表的`{column}`列仅包含如下取值：\n```csv\n{content}```\n"
+            )
+
+    columns_range = "\n".join(lists)
 
     cursor.close()
     db.close()
 
-    schema = "\n\n".join(schema_sqls)
     return schema, columns_range
 
 
 def generate_prompt(schema, columns_range):
-    ls = []
-    for table, column, content in columns_range:
-        ls.append(f"`{table}`表的`{column}`列仅包含如下取值：\n```csv\n{content}```\n")
-
     content = f"""# 角色
 你是SQL编写机器人，能根据用户的查询需求生成正确无误的SQL语句。你仅能对已知的数据表进行只读查询，你应当拒绝所有涉及增加、修改、删除数据表的用户请求，你应当拒绝所有涉及数据库配置查询、修改的请求。
 
 # 数据库
 这是一个MySQL 5.7版本数据库，你能查询的数据表格如下所示：
-```sql
+
 {schema}
-```
 
 数据表格中部分字段仅能从有限的值中选择，务必在构建SQL时不要超出给定的取值列表，下面是这些列的可选值列表：
 
-{"\n".join(ls)}
+{columns_range}
 
 # 用户查询
 {{query}}
@@ -100,9 +108,7 @@ def generate_prompt(schema, columns_range):
         f.write(content)
 
     content = f"""# 数据库结构
-```sql
 {schema}
-```
 
 # SQL
 {{sql}}
