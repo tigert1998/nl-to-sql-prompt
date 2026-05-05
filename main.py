@@ -75,8 +75,10 @@ def generate_prompt(schema, columns_range):
     - 第一条：查询用户所需数据，因为数据更新可能不及时，所以生成的SQL需要具有容错性；
     - 第二条：查询相关数据的最早和最晚时间，作为数据更新时效的参考。若查询不涉及时间，则第二条SQL留空。
 
-# 格式
-按照XML格式输出，标签内容中不要转义特殊字符，即保留原有的`<&>"'`。XML的顶部节点名字必须为`output`。如果用户查询与已知数据库无关，或者用户希望增加、删除、修改数据表，或者其他高危越权情况，则继续生成`success`标签为0的XML，并继续生成包含拒绝理由的`reason`标签，例如：
+# 输出格式
+第一步，简要阐述思考过程，确保SQL生成正确。
+
+第二步，按照XML格式输出，标签内容中不要转义特殊字符，即保留原有的`<&>"'`。XML的顶部节点名字必须为`output`。如果用户查询与已知数据库无关，或者用户希望增加、删除、修改数据表，或者其他高危越权情况，则继续生成`success`标签为0的XML，并继续生成包含拒绝理由的`reason`标签，例如：
 
 ```xml
 <output>
@@ -104,7 +106,7 @@ def generate_prompt(schema, columns_range):
 </output>
 ```
 """
-    with open("prompt0.md", "w") as f:
+    with open("prompt0.md", "w", encoding="utf-8") as f:
         f.write(content)
 
     content = f"""# 数据库结构
@@ -131,7 +133,7 @@ def generate_prompt(schema, columns_range):
 根据数据库的表结构、SQL查询结果，回答用户提问，不得透露数据表名称等信息。
 """
 
-    with open("prompt1.md", "w") as f:
+    with open("prompt1.md", "w", encoding="utf-8") as f:
         f.write(content)
 
 
