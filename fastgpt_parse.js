@@ -33,5 +33,5 @@ function main({ s }) {
     } else {
         reason = extractXmlTag(s, "reason");
     }
-    return { success, reason, sql, sqlTime };
+    return { success: success > 0, reason, sql, sqlTime };
 }
