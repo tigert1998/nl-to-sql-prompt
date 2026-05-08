@@ -66,6 +66,10 @@ def generate_prompt(schema, columns_range):
 {columns_range}
 
 # 用户查询
+## 历史对话
+{{history}}
+
+## 当前用户提问
 {{query}}
 
 # 任务要求
@@ -126,7 +130,11 @@ def generate_prompt(schema, columns_range):
 
 {{sql_time_result}}
 
-# 用户提问
+# 用户查询
+## 历史对话
+{{history}}
+
+## 当前用户提问
 {{query}}
 
 # 任务
