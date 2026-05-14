@@ -60,16 +60,14 @@ class Logger:
     def __init__(self, log_file):
         if log_file is not None:
             self.log_fp = open(log_file, "w", encoding="utf-8")
-            self.is_first = True
         else:
             self.log_fp = None
 
     def log(self, section, s):
         if self.log_fp is not None:
-            self.log_fp.write(f'<h1 style="color:red">{section}</h1>\n')
-            self.log_fp.write(s + "\n")
+            self.log_fp.write(f'<h1 style="color:red">{section}</h1>\n\n')
+            self.log_fp.write(s + "\n\n")
             self.log_fp.flush()
-            self.is_first = False
 
     def close(self):
         if self.log_fp is not None:

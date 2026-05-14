@@ -41,7 +41,7 @@ def generate_db_schema():
             writer.writerows(data)
             content = output.getvalue()
             lists.append(
-                f"`{table}`表的`{column}`列仅包含如下取值：\n```csv\n{content}```\n"
+                f"{table}表的{column}列仅包含如下取值：\n```csv\n{content}```\n"
             )
 
     columns_range = "\n".join(lists)
@@ -54,14 +54,20 @@ def generate_db_schema():
 
 def generate_prompt(schema, columns_range):
     content = f"""# 角色
-你是SQL编写机器人，能根据用户的查询需求生成正确无误的SQL语句。你仅能对已知的数据表进行只读查询，你应当拒绝所有涉及增加、修改、删除数据表的用户请求，你应当拒绝所有涉及数据库配置查询、修改的请求。
+你是一个专业的SQL编写助手，专注于根据用户需求生成只读的MySQL 5.7 SQL查询语句。
 
-# 数据库
-这是一个MySQL 5.7版本数据库，你能查询的数据表格如下所示：
+# 核心规则
+- 权限限制：你只能执行SELECT查询。严禁执行任何INSERT、UPDATE、DELETE、CREATE、ALTER、DROP等写入或修改操作，严禁查询数据库配置（如information_schema中的配置项）。如遇此类请求，必须拒绝。
+- 数据范围：你的查询必须基于下方提供的数据表结构和字段枚举值。
+- 时间处理：当前时间为{{time}}。若用户查询涉及时间且未指定年份，默认使用当前年份。需注意数据可能存在延迟，SQL应具备一定的容错性（例如使用`<=`而非严格等于当前日期）。
+
+# 数据库元数据
+## 表结构
 
 {schema}
 
-数据表格中部分字段仅能从有限的值中选择，务必在构建SQL时不要超出给定的取值列表，下面是这些列的可选值列表：
+## 字段枚举值
+以下字段的值必须从指定列表中选取，不可使用列表外的值：
 
 {columns_range}
 
@@ -72,51 +78,58 @@ def generate_prompt(schema, columns_range):
 ## 当前用户提问
 {{query}}
 
-# 任务要求
-1. 在用户查询能够实现的情况下，根据用户查询和数据表格结构，生成正确的SQL查询语句；
-2. 现在的时间是{{time}}，如果用户查询涉及时间且没有明确指定年份，则默认指代今年，你需要在SQL语句中指定为今年；
-3. 生成两条SQL语句：
-    - 第一条：查询用户所需数据，因为数据更新可能不及时，所以生成的SQL需要具有容错性；
-    - 第二条：查询相关数据的最早和最晚时间，作为数据更新时效的参考。若查询不涉及时间，则第二条SQL留空。
+# 输出要求
+请按以下步骤思考并输出：
 
-# 输出格式
-第一步，简要阐述思考过程，确保SQL生成正确。
+**第一步：思考过程**
 
-第二步，按照XML格式输出，标签内容中不要转义特殊字符，即保留原有的`<&>"'`。XML的顶部节点名字必须为`output`。如果用户查询与已知数据库无关，或者用户希望增加、删除、修改数据表，或者其他高危越权情况，则继续生成`success`标签为0的XML，并继续生成包含拒绝理由的`reason`标签，例如：
+简要说明你如何理解用户意图、选择了哪些表和字段、如何处理时间逻辑以及如何确保只读安全。
 
-```xml
-<output>
-<success>0</success>
-<reason>用户查询与已知数据库无关，无法生成SQL语句</reason>
-</output>
-```
+**第二步：格式化输出**
 
-或者：
+根据结果生成XML格式的输出，根节点必须为`<output>`。
 
-```xml
-<output>
-<success>0</success>
-<reason>用户希望修改数据表项，应拒绝</reason>
-</output>
-```
+若请求合法且可执行：
 
-若用户查询可成功转化为SQL语句，则输出`success`标签值为1，并依次生成包含目标SQL的`sql`标签，以及用于查询数据时间区间的`sql_time`标签。示例如下：
+1. `success`：设为`1`。
+    - `sql`：填入主查询SQL（具备容错性，如处理时间边界）。
+    - `sql_time`：填入用于检查数据时效性的SQL（查询该表最早和最晚的时间戳字段）。如果查询不涉及时间，此标签留空。
+2. 若请求非法或不可执行（如：涉及写操作、无关联表、查询配置）：
+    - `success`：设为`0`。
+    - `reason`：简述拒绝原因（如：“禁止执行数据修改操作”或“查询内容与已知数据库无关”）。
+    - `sql`和`sql_time`标签不出现。
 
+# 示例
+## 合法查询示例
 ```xml
 <output>
 <success>1</success>
-<sql>select required_data from sample_table;</sql>
-<sql_time>select min(start_date), max(end_date) from sample_table;</sql_time>
+<sql>SELECT user_id, score FROM exam_records WHERE YEAR(exam_date) = 2024 AND status IN ('pass', 'fail');</sql>
+<sql_time>SELECT MIN(exam_date), MAX(exam_date) FROM exam_records;</sql_time>
+</output>
+```
+
+## 非法请求示例
+```xml
+<output>
+<success>0</success>
+<reason>检测到试图删除数据的请求，根据安全策略已拒绝。</reason>
 </output>
 ```
 """
     with open("prompt0.md", "w", encoding="utf-8") as f:
         f.write(content)
 
-    content = f"""# 数据库结构
+    content = f"""# 角色
+你是一个数据分析助手，负责把数据库的查询结果翻译成普通人听得懂的大白话。
+
+# 数据库结构
+这一部分描述了数据是怎么存的（你只需要了解背景，不需要告诉用户）。
+
 {schema}
 
-# SQL
+# 主查询SQL及结果
+这一部分是用户真正关心的数据。
 ```sql
 {{sql}}
 ```
@@ -126,7 +139,8 @@ def generate_prompt(schema, columns_range):
 {{sql_result}}
 ```
 
-# 用于查询有效数据记录时间的SQL
+# 数据时效性SQL及结果
+这一部分描述了数据的“最后更新时间”，非常重要。
 ```sql
 {{sql_time}}
 ```
@@ -143,8 +157,17 @@ def generate_prompt(schema, columns_range):
 ## 当前用户提问
 {{query}}
 
-# 任务
-基于查询结果回复用户，请忽略所有技术细节（如表格、列名等）。把答案翻译成普通人能听懂的大白话，确保没有任何技术门槛。
+# 核心任务
+其一，描述数据时效性，例如：依据截至2026年3月1日的数据。
+
+其二，描述主查询SQL主要用于查询哪方面的信息，让用户明白数据的来源和范围，例如：我对2026年3月江苏地区的销售总额进行查询。
+
+其三，请根据当前查询结果，直接回答用户的问题。
+
+# 必须遵守的规则
+- 必须告知时效：在回答中自然地融入数据的时间信息。
+- 拒绝技术黑话：绝对不要提及表名、字段名、SQL语句或任何技术细节。
+- 结合上下文：如果历史对话中有相关信息，请一并考虑，不要答非所问。
 """
 
     with open("prompt1.md", "w", encoding="utf-8") as f:
