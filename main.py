@@ -117,18 +117,24 @@ def generate_prompt(schema, columns_range):
 {schema}
 
 # SQL
+```sql
 {{sql}}
+```
 
 该SQL查询结果：
-
+```
 {{sql_result}}
+```
 
 # 用于查询有效数据记录时间的SQL
+```sql
 {{sql_time}}
+```
 
 该SQL查询结果：
-
+```
 {{sql_time_result}}
+```
 
 # 用户查询
 ## 历史对话
@@ -138,7 +144,7 @@ def generate_prompt(schema, columns_range):
 {{query}}
 
 # 任务
-根据数据库的表结构、SQL查询结果，回答用户提问，不得透露数据表名称等信息。
+基于查询结果回复用户，请忽略所有技术细节（如表格、列名等）。把答案翻译成普通人能听懂的大白话，确保没有任何技术门槛。
 """
 
     with open("prompt1.md", "w", encoding="utf-8") as f:
