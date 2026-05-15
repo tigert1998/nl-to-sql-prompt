@@ -7,13 +7,13 @@ import re
 import mysql.connector
 
 
-def query_llm(prompt, url, model, key):
+def query_llm(prompt, url, model, key, **kwargs):
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "enable_thinking": False,
+        **kwargs,
     }
 
     response = requests.post(url=url, headers=headers, json=payload)
