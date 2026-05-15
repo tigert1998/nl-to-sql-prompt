@@ -49,8 +49,11 @@ def query_db(sql, host, user, password, database):
         host=host, user=user, password=password, database=database
     )
     cursor = db.cursor()
-    cursor.execute(sql)
-    output = cursor.fetchall()
+    try:
+        cursor.execute(sql)
+        output = cursor.fetchall()
+    except Exception as e:
+        output = str(e)
     cursor.close()
     db.close()
     return output
@@ -105,7 +108,7 @@ def agent(query, config):
             sql_time_result=sql_time_result,
             query=query,
             history=history,
-            time=date.today()
+            time=date.today(),
         )
         logger.log("LLM #2 Query", prompt1)
 
