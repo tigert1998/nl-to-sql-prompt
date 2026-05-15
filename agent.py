@@ -105,6 +105,7 @@ def agent(query, config):
             sql_time_result=sql_time_result,
             query=query,
             history=history,
+            time=date.today()
         )
         logger.log("LLM #2 Query", prompt1)
 
