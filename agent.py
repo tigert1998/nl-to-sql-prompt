@@ -8,12 +8,15 @@ import mysql.connector
 import yaml
 
 
-def query_llm(prompt, url, model, key, **kwargs):
+def query_llm(system_prompt, query, url, model, key, **kwargs):
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": query},
+        ],
         **kwargs,
     }
 
@@ -76,14 +79,12 @@ def agent(query, config):
 
     history = ""
 
-    prompt0 = load_prompt(
-        "prompt0.md", {"history": history, "query": query, "time": date.today()}
-    )
+    prompt0 = load_prompt("prompt0.md", {"time": date.today()})
     logger.log("LLM #1 Query", prompt0)
 
     profiles = config["llm"]["profiles"]
-    profile = config["llm"]["profile"]
-    output = query_llm(prompt0, **profiles[profile])
+    profile = profiles[config["llm"]["profile"]]
+    output = query_llm(prompt0, query, **profile)
     logger.log("LLM #1 Response", output)
 
     obj = parse_markdown_yaml_block(output)
@@ -101,14 +102,12 @@ def agent(query, config):
                 "main_sql_result": main_sql_result,
                 "time_sql": time_sql,
                 "time_sql_result": time_sql_result,
-                "query": query,
-                "history": history,
                 "time": date.today(),
             },
         )
         logger.log("LLM #2 Query", prompt1)
 
-        output = query_llm(prompt1, **profiles[profile])
+        output = query_llm(prompt1, query, **profile)
         logger.log("LLM #2 Response", output)
     else:
         reason = obj["reason"]

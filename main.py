@@ -73,13 +73,6 @@ def generate_prompt(schema, columns_range):
 
 {columns_range}
 
-# 用户查询
-## 历史对话
-{{history}}
-
-## 当前用户提问
-{{query}}
-
 # 输出要求
 请按以下步骤思考并输出：
 
@@ -146,13 +139,6 @@ reason: 检测到试图删除数据的请求，根据安全策略已拒绝。
 ```
 {{time_sql_result}}
 ```
-
-# 用户查询
-## 历史对话
-{{history}}
-
-## 当前用户提问
-{{query}}
 
 # 核心任务
 1. 异常处理（最高优先级）
