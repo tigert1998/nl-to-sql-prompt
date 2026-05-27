@@ -3,7 +3,7 @@ function main({ s }) {
     let matches = [];
     let match;
 
-    while ((match = regex.exec(text)) !== null) {
+    while ((match = regex.exec(s)) !== null) {
         matches.push(match[1]);
     }
 

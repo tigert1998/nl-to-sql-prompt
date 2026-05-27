@@ -23,14 +23,28 @@
     },
     "tables": {
         "表名": {
-            "列名1": true,
-            "列名2": false
+            "desc": "表的注释",
+            "columns": {
+                "列名1": {
+                    "desc": "列的注释",
+                    "enumerable": true
+                },
+                "列名2": {
+                    "desc": "列的注释",
+                    "enumerable": false
+                }
+            }
         }
     },
     "llm": {
-        "key": "API密钥",
-        "url": "https://模型接口地址/v1/chat/completions",
-        "model": "模型名称"
+        "profile": "模型提供商名字",
+        "profiles": {
+            "模型提供商名字": {
+                "key": "API密钥",
+                "url": "https://模型接口地址/v1/chat/completions",
+                "model": "模型名称"
+            }
+        }
     },
     "agent": {
         "log": "./log.md"
@@ -43,13 +57,13 @@
 | 字段 | 说明 |
 |------|------|
 | `db` | MySQL 数据库连接信息。 |
-| `tables` | 参与查询的表及其列。**请确保数据库中的表和列已添加注释**，以便提示词生成更准确。<br>- `true`：该列为枚举类型，值应从已有数据中选取。<br>- `false`：该列为非枚举类型。 |
+| `tables` | 参与查询的表及其列，`desc` 为表、列的注释，`enumerable` 字段表示列的取值是否需要在提示词中枚举出来。|
 | `llm` | `agent.py` 使用的大模型配置（API Key、接口地址、模型名称）。 |
 | `agent` | `agent.py` 的运行配置，如日志文件路径。 |
 
 ## 快速开始
 
-1. **准备配置**：填写 `config.json`，确保数据库可访问且表/列注释完整。
+1. **准备配置**：填写 `config.json`。
 2. **生成提示词**：
    ```bash
    python main.py
