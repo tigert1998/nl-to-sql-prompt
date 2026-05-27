@@ -77,14 +77,16 @@ def load_prompt(path, args):
 def agent(query, config):
     logger = Logger(config["agent"]["log"])
 
-    history = ""
-
-    prompt0 = load_prompt("prompt0.md", {"time": date.today()})
-    logger.log("LLM #1 Query", prompt0)
+    prompt0_system = load_prompt("prompt0.system.md", {})
+    prompt0_user = load_prompt(
+        "prompt0.user.md", {"time": date.today(), "query": query}
+    )
+    logger.log("LLM #1 System", prompt0_system)
+    logger.log("LLM #1 User", prompt0_user)
 
     profiles = config["llm"]["profiles"]
     profile = profiles[config["llm"]["profile"]]
-    output = query_llm(prompt0, query, **profile)
+    output = query_llm(prompt0_system, prompt0_user, **profile)
     logger.log("LLM #1 Response", output)
 
     obj = parse_markdown_yaml_block(output)
@@ -95,19 +97,22 @@ def agent(query, config):
         main_sql_result = query_db(main_sql, **config["db"])
         time_sql_result = query_db(time_sql, **config["db"])
 
-        prompt1 = load_prompt(
-            "prompt1.md",
+        prompt1_system = load_prompt("prompt1.system.md", {})
+        prompt1_user = load_prompt(
+            "prompt1.user.md",
             {
                 "main_sql": main_sql,
                 "main_sql_result": main_sql_result,
                 "time_sql": time_sql,
                 "time_sql_result": time_sql_result,
                 "time": date.today(),
+                "query": query,
             },
         )
-        logger.log("LLM #2 Query", prompt1)
+        logger.log("LLM #2 System", prompt1_system)
+        logger.log("LLM #2 User", prompt1_user)
 
-        output = query_llm(prompt1, query, **profile)
+        output = query_llm(prompt1_system, prompt1_user, **profile)
         logger.log("LLM #2 Response", output)
     else:
         reason = obj["reason"]

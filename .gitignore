@@ -8,3 +8,5 @@ __pycache__
 node_modules
 dist
 !README.md
+!prompt0.user.md
+!prompt1.user.md
