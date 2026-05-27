@@ -59,16 +59,8 @@ class Logger:
 def parse_markdown_yaml_block(text: str):
     pattern = r"```ya?ml\s([\s\S]*?)\s```"
     matches = re.findall(pattern, text)
-
-    if not matches:
-        return None
-
     last_block = matches[-1].strip()
-
-    try:
-        return yaml.safe_load(last_block)
-    except json.JSONDecodeError:
-        return None
+    return yaml.safe_load(last_block)
 
 
 def load_prompt(path, args):

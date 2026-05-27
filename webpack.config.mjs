@@ -1,8 +1,11 @@
-const path = require('path');
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-module.exports = {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default {
     mode: 'production',
-    entry: './fastgpt-parse.js',
+    entry: './fastgpt-parse.mjs',
     output: {
         filename: 'fastgpt-parse.bundle.js',
         path: path.resolve(__dirname, 'dist'),
