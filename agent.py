@@ -22,28 +22,6 @@ def query_llm(prompt, url, model, key, **kwargs):
     return answer
 
 
-def decode_xml_entities(input_str):
-    xml_entities = {
-        "&lt;": "<",
-        "&gt;": ">",
-        "&amp;": "&",
-        "&quot;": '"',
-        "&apos;": "'",
-    }
-    return re.sub(
-        r"&(lt|gt|amp|quot|apos);",
-        lambda match: xml_entities[match.group(0)],
-        input_str,
-    )
-
-
-def extract_xml_tag(s, tag):
-    ms = re.findall(f"<{tag}>([\\s\\S]*?)<\\/{tag}>", s)
-    if len(ms) <= 0:
-        return None
-    return decode_xml_entities(ms[-1])
-
-
 def query_db(sql, host, user, password, database):
     db = mysql.connector.connect(
         host=host, user=user, password=password, database=database
@@ -77,45 +55,70 @@ class Logger:
             self.log_fp.close()
 
 
+def parse_markdown_json_block(text: str):
+    pattern = r"```json\s([\s\S]*?)\s```"
+    matches = re.findall(pattern, text)
+
+    if not matches:
+        return None
+
+    last_block = matches[-1].strip()
+
+    try:
+        return json.loads(last_block)
+    except json.JSONDecodeError:
+        return None
+
+
+def load_prompt(path, args):
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    for k, v in args.items():
+        content = content.replace(f"{{{k}}}", str(v))
+    return content
+
+
 def agent(query, config):
     logger = Logger(config["agent"]["log"])
 
-    with open("prompt0.md", "r", encoding="utf-8") as f:
-        prompt0 = f.read()
-    with open("prompt1.md", "r", encoding="utf-8") as f:
-        prompt1 = f.read()
-
     history = ""
 
-    prompt0 = prompt0.format(history=history, query=query, time=date.today())
+    prompt0 = load_prompt(
+        "prompt0.md", {"history": history, "query": query, "time": date.today()}
+    )
     logger.log("LLM #1 Query", prompt0)
 
-    output = query_llm(prompt0, **config["llm"])
+    profiles = config["llm"]["profiles"]
+    profile = config["llm"]["profile"]
+    output = query_llm(prompt0, **profiles[profile])
     logger.log("LLM #1 Response", output)
 
-    success = extract_xml_tag(output, "success")
-    success = int(success) > 0
+    obj = parse_markdown_json_block(output)
+    success = obj["success"]
     if success:
-        sql = extract_xml_tag(output, "sql")
-        sql_time = extract_xml_tag(output, "sql_time")
+        sql = obj["sql"]
+        sql_time = obj["sql_time"]
         sql_result = query_db(sql, **config["db"])
         sql_time_result = query_db(sql_time, **config["db"])
 
-        prompt1 = prompt1.format(
-            sql=sql,
-            sql_result=sql_result,
-            sql_time=sql_time,
-            sql_time_result=sql_time_result,
-            query=query,
-            history=history,
-            time=date.today(),
+        prompt1 = load_prompt(
+            "prompt1.md",
+            {
+                "sql": sql,
+                "sql_result": sql_result,
+                "sql_time": sql_time,
+                "sql_time_result": sql_time_result,
+                "query": query,
+                "history": history,
+                "time": date.today(),
+            },
         )
         logger.log("LLM #2 Query", prompt1)
 
-        output = query_llm(prompt1, **config["llm"])
+        output = query_llm(prompt1, **profiles[profile])
         logger.log("LLM #2 Response", output)
     else:
-        reason = extract_xml_tag(output, "reason")
+        reason = obj["reason"]
         logger.log("Rejection Reason", reason)
 
     logger.close()

@@ -14,16 +14,14 @@ def generate_db_schema():
 
     schemas = []
     for table in config["tables"].keys():
-        sql = f"""SELECT table_comment FROM information_schema.tables
-            WHERE table_name = '{table}';"""
-        cursor.execute(sql)
-        table_comment = cursor.fetchall()[0][0]
+        table_comment = config["tables"][table]["desc"]
         column_descs = []
-        for column, _ in config["tables"][table].items():
-            sql = f"""SELECT COLUMN_COMMENT, column_type FROM INFORMATION_SCHEMA.COLUMNS
+        for column in config["tables"][table]["columns"].keys():
+            column_comment = config["tables"][table]["columns"][column]["desc"]
+            sql = f"""SELECT column_type FROM INFORMATION_SCHEMA.COLUMNS
                 WHERE TABLE_NAME = '{table}' and column_name = '{column}';"""
             cursor.execute(sql)
-            column_comment, column_type = cursor.fetchall()[0]
+            (column_type,) = cursor.fetchall()[0]
             column_descs.append(
                 f"- 列名：{column}，类型：`{column_type}`，注释：{column_comment}"
             )
@@ -33,7 +31,11 @@ def generate_db_schema():
 
     lists = []
     for table in config["tables"].keys():
-        for column in [k for k, v in config["tables"][table].items() if v]:
+        for column in [
+            c
+            for c, obj in config["tables"][table]["columns"].items()
+            if obj["enumerable"]
+        ]:
             cursor.execute(f"select distinct `{column}` from `{table}`;")
             data = [[row[0]] for row in cursor.fetchall()]
             output = io.StringIO()
@@ -41,7 +43,7 @@ def generate_db_schema():
             writer.writerows(data)
             content = output.getvalue()
             lists.append(
-                f"{table}表的{column}列仅包含如下取值：\n```csv\n{content}```\n"
+                f"{table} 表的 {column} 列仅包含如下取值：\n```csv\n{content}```\n"
             )
 
     columns_range = "\n".join(lists)
@@ -54,12 +56,12 @@ def generate_db_schema():
 
 def generate_prompt(schema, columns_range):
     content = f"""# 角色
-你是一个专业的SQL编写助手，专注于根据用户需求生成只读的MySQL 5.7 SQL查询语句。
+你是一个专业的 SQL 编写助手，专注于根据用户需求生成只读的 SQL 查询语句。
 
 # 核心规则
-- 权限限制：你只能执行SELECT查询。严禁执行任何INSERT、UPDATE、DELETE、CREATE、ALTER、DROP等写入或修改操作，严禁查询数据库配置（如information_schema中的配置项）。如遇此类请求，必须拒绝。
+- 权限限制：你只能执行 SELECT 查询。严禁执行任何 INSERT、UPDATE、DELETE、CREATE、ALTER、DROP 等写入或修改操作，严禁查询数据库配置（如 information_schema 中的配置项）。如遇此类请求，必须拒绝。
 - 数据范围：你的查询必须基于下方提供的数据表结构和字段枚举值。
-- 时间处理：当前时间为{{time}}。若用户查询涉及时间且未指定年份，默认使用当前年份。需注意数据可能存在延迟，SQL应具备一定的容错性（例如使用`<=`而非严格等于当前日期）。
+- 时间处理：当前时间为 {{time}}。若用户查询涉及时间且未指定年份，默认使用当前年份。需注意数据可能存在延迟，SQL 应具备一定的容错性（例如使用 `<=` 而非严格等于当前日期）。
 
 # 数据库元数据
 ## 表结构
@@ -87,65 +89,64 @@ def generate_prompt(schema, columns_range):
 
 **第二步：格式化输出**
 
-根据结果生成XML格式的输出，根节点必须为`<output>`。
+根据结果生成 JSON 格式的输出，且将最终的 JSON 结果放在标准的 Markdown JSON 代码块中。
 
-若请求合法且可执行：
-
-1. `success`：设为`1`。
-    - `sql`：填入主查询SQL（具备容错性，如处理时间边界）。
-    - `sql_time`：填入用于检查数据时效性的SQL（查询该表最早和最晚的时间戳字段）。如果查询不涉及时间，此标签留空。
+1. 若请求请求合法可执行：
+    - `success`：设为 `true`。
+    - `sql`：填入主查询 SQL（具备容错性，如处理时间边界）。
+    - `sql_time`：填入用于检查数据时效性的 SQL（查询该表最早和最晚的时间戳字段）。如果查询不涉及时间，此标签留空。
 2. 若请求非法或不可执行（如：涉及写操作、无关联表、查询配置）：
-    - `success`：设为`0`。
+    - `success`：设为 `false`。
     - `reason`：简述拒绝原因（如：“禁止执行数据修改操作”或“查询内容与已知数据库无关”）。
-    - `sql`和`sql_time`标签不出现。
+    - `sql` 和 `sql_time` 标签不出现。
 
 # 示例
 ## 合法查询示例
-```xml
-<output>
-<success>1</success>
-<sql>SELECT user_id, score FROM exam_records WHERE YEAR(exam_date) = 2024 AND status IN ('pass', 'fail');</sql>
-<sql_time>SELECT MIN(exam_date), MAX(exam_date) FROM exam_records;</sql_time>
-</output>
-```
+<pre><code>```json
+{{
+    "success": true,
+    "sql": "SELECT user_id, score FROM exam_records WHERE YEAR(exam_date) = 2024 AND status IN ('pass', 'fail');",
+    "sql_time": "SELECT MIN(exam_date), MAX(exam_date) FROM exam_records;"
+}}
+```</code></pre>
 
 ## 非法请求示例
-```xml
-<output>
-<success>0</success>
-<reason>检测到试图删除数据的请求，根据安全策略已拒绝。</reason>
-</output>
-```
+<pre><code>```json
+{{
+    "success": false,
+    "reason": "检测到试图删除数据的请求，根据安全策略已拒绝。"
+}}
+```</code></pre>
 """
     with open("prompt0.md", "w", encoding="utf-8") as f:
         f.write(content)
 
     content = f"""# 角色
-你是一个数据查询与翻译专家。你的工作是根据用户的需求从数据库中提取信息，并将复杂的SQL结果转化为直观、易懂的自然语言回复。
+你是一个数据查询与翻译专家。你的工作是根据用户的需求从数据库中提取信息，并将复杂的 SQL 结果转化为直观、易懂的自然语言回复。
 
 # 数据库结构
 这一部分描述了数据是怎么存的（你只需要了解背景，不需要告诉用户）。
 
 {schema}
 
-# 主查询SQL及结果
+# 主查询 SQL 及结果
 这一部分是用户真正关心的数据：
 ```sql
 {{sql}}
 ```
 
-该SQL查询结果：
+该 SQL 查询结果：
 ```
 {{sql_result}}
 ```
 
-# 数据时效性SQL及结果
+# 数据时效性 SQL 及结果
 这一部分描述了数据的“最后更新时间”，非常重要：
 ```sql
 {{sql_time}}
 ```
 
-该SQL查询结果：
+该 SQL 查询结果：
 ```
 {{sql_time_result}}
 ```
@@ -163,14 +164,14 @@ def generate_prompt(schema, columns_range):
 - 执行动作：立即终止后续所有分析步骤。直接回复：“抱歉，我的查询出现了问题，您可以尝试再问我一次”，严禁解释任何技术层面的错误原因。
 2. 正常回答流程
 当查询成功时，请严格按照以下三步的逻辑结构输出答案，但不必列出分步标题：
-- 第一步：解释数据时效性。结合数据时效性SQL查询结果，解释当前数据库中已有数据的记录时间。
-- 第二步：界定查询范围。请结合当前时间{{time}}与数据库的数据时效性，对“主查询”的具体内容进行阐释。需向用户明确说明查询的地理范围、业务对象及时间窗口（例如：“已为您统计2023年6月在江苏省的销售总额”）。特别需要注意：向用户说明的时间窗口应限制在数据库的数据时效性范围内。
+- 第一步：解释数据时效性。结合数据时效性 SQL 查询结果，解释当前数据库中已有数据的记录时间。
+- 第二步：界定查询范围。请结合当前时间 {{time}} 与数据库的数据时效性，对“主查询”的具体内容进行阐释。需向用户明确说明查询的地理范围、业务对象及时间窗口（例如：“已为您统计 2023 年 6 月在江苏省的销售总额”）。特别需要注意：向用户说明的时间窗口应限制在数据库的数据时效性范围内。
 - 第三步：给出核心结论。基于查询结果，直接、精准地回答用户的问题。
 
 # 必须遵守的规则
-- 异常拦截：若主查询SQL存在语法错误或执行失败，如实回答，无需解释错误细节；
+- 异常拦截：若主查询 SQL 存在语法错误或执行失败，如实回答，无需解释错误细节；
 - 必须告知时效：在回答中自然地融入数据的时间信息；
-- 拒绝技术黑话：绝对不要提及表名、字段名、SQL语句或任何技术细节；
+- 拒绝技术黑话：绝对不要提及表名、字段名、SQL 语句或任何技术细节；
 - 结合上下文：如果历史对话中有相关信息，请一并考虑，不要答非所问；
 - 保持礼貌：永远使用“您”。
 """
