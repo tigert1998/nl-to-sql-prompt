@@ -5,4 +5,6 @@ values
 config.json
 log.txt
 __pycache__
+node_modules
+dist
 !README.md

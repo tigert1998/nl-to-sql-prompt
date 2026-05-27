@@ -1,0 +1,13 @@
+{
+  "name": "nl-to-sql-prompt",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "build": "webpack"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.1",
+    "webpack": "^5.107.2",
+    "webpack-cli": "^7.0.2"
+  }
+}

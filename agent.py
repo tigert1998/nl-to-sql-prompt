@@ -5,6 +5,7 @@ import argparse
 import re
 
 import mysql.connector
+import yaml
 
 
 def query_llm(prompt, url, model, key, **kwargs):
@@ -55,8 +56,8 @@ class Logger:
             self.log_fp.close()
 
 
-def parse_markdown_json_block(text: str):
-    pattern = r"```json\s([\s\S]*?)\s```"
+def parse_markdown_yaml_block(text: str):
+    pattern = r"```ya?ml\s([\s\S]*?)\s```"
     matches = re.findall(pattern, text)
 
     if not matches:
@@ -65,7 +66,7 @@ def parse_markdown_json_block(text: str):
     last_block = matches[-1].strip()
 
     try:
-        return json.loads(last_block)
+        return yaml.safe_load(last_block)
     except json.JSONDecodeError:
         return None
 
@@ -93,21 +94,21 @@ def agent(query, config):
     output = query_llm(prompt0, **profiles[profile])
     logger.log("LLM #1 Response", output)
 
-    obj = parse_markdown_json_block(output)
+    obj = parse_markdown_yaml_block(output)
     success = obj["success"]
     if success:
-        sql = obj["sql"]
-        sql_time = obj["sql_time"]
-        sql_result = query_db(sql, **config["db"])
-        sql_time_result = query_db(sql_time, **config["db"])
+        main_sql = obj["main_sql"]
+        time_sql = obj["time_sql"]
+        main_sql_result = query_db(main_sql, **config["db"])
+        time_sql_result = query_db(time_sql, **config["db"])
 
         prompt1 = load_prompt(
             "prompt1.md",
             {
-                "sql": sql,
-                "sql_result": sql_result,
-                "sql_time": sql_time,
-                "sql_time_result": sql_time_result,
+                "main_sql": main_sql,
+                "main_sql_result": main_sql_result,
+                "time_sql": time_sql,
+                "time_sql_result": time_sql_result,
                 "query": query,
                 "history": history,
                 "time": date.today(),

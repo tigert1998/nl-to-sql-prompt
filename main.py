@@ -89,34 +89,30 @@ def generate_prompt(schema, columns_range):
 
 **第二步：格式化输出**
 
-根据结果生成 JSON 格式的输出，且将最终的 JSON 结果放在标准的 Markdown JSON 代码块中。
+根据结果生成标准的 YAML，且将 YAML 放在标准的 Markdown YAML 代码块中。
 
 1. 若请求请求合法可执行：
     - `success`：设为 `true`。
-    - `sql`：填入主查询 SQL（具备容错性，如处理时间边界）。
-    - `sql_time`：填入用于检查数据时效性的 SQL（查询该表最早和最晚的时间戳字段）。如果查询不涉及时间，此标签留空。
+    - `main_sql`：填入主查询 SQL（具备容错性，如处理时间边界）。
+    - `time_sql`：填入用于检查数据时效性的 SQL（查询该表最早和最晚的时间戳字段）。如果查询不涉及时间，此字段留空。
 2. 若请求非法或不可执行（如：涉及写操作、无关联表、查询配置）：
     - `success`：设为 `false`。
     - `reason`：简述拒绝原因（如：“禁止执行数据修改操作”或“查询内容与已知数据库无关”）。
-    - `sql` 和 `sql_time` 标签不出现。
+    - `main_sql` 和 `time_sql` 字段不出现。
 
 # 示例
 ## 合法查询示例
-<pre><code>```json
-{{
-    "success": true,
-    "sql": "SELECT user_id, score FROM exam_records WHERE YEAR(exam_date) = 2024 AND status IN ('pass', 'fail');",
-    "sql_time": "SELECT MIN(exam_date), MAX(exam_date) FROM exam_records;"
-}}
-```</code></pre>
+```yaml
+success: true
+main_sql: SELECT user_id, score FROM exam_records WHERE YEAR(exam_date) = 2024 AND status IN ('pass', 'fail');
+time_sql: SELECT MIN(exam_date), MAX(exam_date) FROM exam_records;
+```
 
 ## 非法请求示例
-<pre><code>```json
-{{
-    "success": false,
-    "reason": "检测到试图删除数据的请求，根据安全策略已拒绝。"
-}}
-```</code></pre>
+```yaml
+success: false
+reason: 检测到试图删除数据的请求，根据安全策略已拒绝。
+```
 """
     with open("prompt0.md", "w", encoding="utf-8") as f:
         f.write(content)
@@ -132,23 +128,23 @@ def generate_prompt(schema, columns_range):
 # 主查询 SQL 及结果
 这一部分是用户真正关心的数据：
 ```sql
-{{sql}}
+{{main_sql}}
 ```
 
 该 SQL 查询结果：
 ```
-{{sql_result}}
+{{main_sql_result}}
 ```
 
 # 数据时效性 SQL 及结果
 这一部分描述了数据的“最后更新时间”，非常重要：
 ```sql
-{{sql_time}}
+{{time_sql}}
 ```
 
 该 SQL 查询结果：
 ```
-{{sql_time_result}}
+{{time_sql_result}}
 ```
 
 # 用户查询

@@ -1,5 +1,7 @@
-function main({ s }) {
-    const regex = /```json\s([\s\S]*?)\s```/g;
+const yaml = require('js-yaml');
+
+let main = ({ s }) => {
+    const regex = /```ya?ml\s([\s\S]*?)\s```/g;
     let matches = [];
     let match;
 
@@ -14,8 +16,10 @@ function main({ s }) {
     const lastBlockContent = matches.at(-1).trim();
 
     try {
-        return JSON.parse(lastBlockContent);
+        return yaml.load(lastBlockContent);
     } catch (error) {
         return null;
     }
 }
+
+globalThis.main = main;
